@@ -1,0 +1,39 @@
+{
+	"title" : "Output Control",
+	"devices" : [
+	  {
+	  	"name" : "Disk",
+	  	"input_range" : {
+	  		"min" : 0,
+	  		"max" : 5
+	  	},
+	  	"output_range" : {
+	  		"min" : 0,
+	  		"max" : 10
+	  	}
+	  },
+    {
+	  	"name" : "Pump",
+	  	"input_range" : {
+	  		"min" : 0,
+	  		"max" : 5
+	  	},
+	  	"output_range" : {
+	  		"min" : 0,
+	  		"max" : 10
+	  	}
+	  },
+    {
+	  	"name" : "Wind",
+	  	"input_range" : {
+	  		"min" : 0,
+	  		"max" : 5
+	  	},
+	  	"output_range" : {
+	  		"min" : 0,
+	  		"max" : 10
+	  	}
+	  }
+	]
+
+}
