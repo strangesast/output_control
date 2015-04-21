@@ -9,6 +9,7 @@ initial_voltage = 0
 max_v = 10
 min_v = 0
 
+
 def wait(old, new):
     """ wait time (before changing voltage again) corresponds to 
         function of change in v
@@ -32,7 +33,7 @@ def voltage_set(volt):
 
     # do set operation
 
-    print(volt)
+    #print(volt)
     return suggested_wait
 
 
@@ -40,12 +41,12 @@ def voltage_read(c):
     """ get analog voltage from device
     """
 
-    v = c + (-0.5 + random.random()) # basic linear
-
+    _voltage = 10*c + 1/2*(-0.5 + random.random()) # basic linear
     scale = 10 # approach this, must be greater than target
-    v = scale*(1 - math.exp(-c))
-    #print(v)
-    return v
+    #_voltage = scale*(1 - math.exp(-c))
+    _voltage = scale*math.sin(c)*math.exp(c) - 0.2*(0.5 + random.random())
+
+    return _voltage
 
 
 def weighted(both):
@@ -60,6 +61,12 @@ def weighted(both):
 
     ms = [v/t for v, t in zip(dvs, dts)] # slope
 
+    m_bar = sum(ms)/len(ms) if len(ms) > 0 else 0.01
+    delta_m = [i - m_bar for i in ms]
+
+    #weighted_m = [m_bar + dm*math.exp(-dm**2) for dm in delta_m]
+    #weighted_m = sum(weighted_m)/len(weighted_m)
+
     weight = [(1/x**2)/fac if x != 0 else 1/fac for x in range(len(ms))][::-1] # reverse
 
 
@@ -69,11 +76,24 @@ def weighted(both):
 
     l = len(ms) if len(ms) != 0 else 1
 
-    return sum(appl)
+
+    # should always be positive, not sure why ever returning neg
+    #weighted_m = abs(sum(appl))
+    weighted_m = abs(sum(ms))/l if abs(sum(ms))/l > 0.01 else 0
+
+    return weighted_m
 
 
-target = 5 # target voltage
-slow = 0.005 # how fast do you approach the target
+def fluc_target(_time):
+    """ change target over time
+    """
+    
+    period = 1/100
+    return 9 + 1*(1/2 + 1/2*math.sin(period*_time))
+
+
+target = 9 # target voltage
+slow = 0.01 # how fast do you approach the target
 
 keep = 50 # how many to keep in lib
 fac = sum([x**-2 if x != 0 else 1 for x in range(keep)]) # scale weight
@@ -84,10 +104,9 @@ current = 0
 
 # initialize stuff
 voltage_set.last = initial_voltage
-init = time.time()
-n = init
-y = initial_voltage
-
+init_time = time.time()
+next_time = init_time
+input_voltage = initial_voltage
 
 # plotting
 def xory(l, o):
@@ -97,58 +116,75 @@ plt.ion() # turn on interactive plotting
 
 fig = plt.figure()
 ax = fig.add_subplot(111)
-ax2 = fig.add_subplot(111)
-ax2.plot([0, 10*10], [target, target], 'k-')
-plt.ylim([0, target + target*0.1])
+
+target_plot, = ax.plot([0, 10*10], [target, target], 'k-')
 
 line1, = ax.plot(xory(lib, 0), xory(lib, 1), 'ro')
 
 line2, = ax.plot([0, 0], [0, 0], 'b-')
 
+plt.ylim([0, target + target*0.1])
 
 framecount = 0
-while y < target + 0.8:
-    framecount+=1
-    i = time.time()
+delta_y = 0
+m = 1
 
-    v = voltage_read(y)
-    lib.append((i-init, v))
+#while input_voltage < target + 0.8:
+while True:
+    framecount+=1
+    current_time = time.time()
+
+    target = fluc_target(current_time)
+    response_voltage = voltage_read(input_voltage)
+
+    # (time_since_init)
+    time_post_init = current_time - init_time
+    lib.append((current_time-init_time, response_voltage))
     lib = lib[-keep:]
     lower = min(xory(lib, 0))
 
-    m = weighted(lib)
-    if(m == 0):  # this should never be exactly 0
-        m = 1
 
-    plt.xlim([lower, i-init]) # move with the data
-    plt.ylim([0, max([1.1*target, max(xory(lib, 1))])]) # move with the data
+    delta_y = (target - response_voltage)/m*slow if m > 0.1 else 0.01
+
+    m = weighted(lib)
+
+    # plot target
+    target_plot.set_xdata([lower, current_time - init_time])
+    target_plot.set_ydata([target, target])
+
+    plt.xlim([lower, current_time-init_time]) # move with the data
+    #plt.ylim([0, max([1.1*target, max(xory(lib, 1))])]) # move with the data
 
     line1.set_xdata(xory(lib, 0))
     line1.set_ydata(xory(lib, 1))
 
     # plot slope
-    line2.set_xdata([lower, i-init])
-    line2.set_ydata([0, (i-init-lower)*m])
+    #line2.set_xdata([lower, current_time-init_time])
+    #line2.set_ydata([0, (current_time-init_time-lower)*m])
 
     fig.canvas.draw()
 
     # save frame
-    text = ('000' + str(framecount))[-3:]
-    fig.savefig("./png/{}.png".format(text))
+    #text = ('000' + str(framecount))[-3:]
+    #fig.savefig("./png/{}.png".format(text))
     
-    delta_y = (target - v)/m*slow
+
+    #print(target - response_voltage)
+    #print(m)
 
     if abs(delta_y) < 0.001:
-        break
+        pass
+        #break
+        #print(target)
 
-    if i > n:
-        w = voltage_set(y)
-        if v < target:
-            y+=delta_y
+    if current_time > next_time:
+        wait_time = voltage_set(input_voltage)
+        if response_voltage < target:
+            input_voltage+=delta_y
         else: 
-            y+=delta_y
+            input_voltage+=delta_y
 
-        n = time.time() + w
+        next_time = time.time() + wait_time
 
 
 time.sleep(100)
