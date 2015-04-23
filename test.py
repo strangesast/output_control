@@ -53,6 +53,10 @@ def weighted(both):
     """ accepts lib array
     """
 
+    # needs to be m = delta_v / delta_y
+    # rather than m = delta_v / delta_t
+    # probably can be done mostly in lib (both)
+
     ts = [x[0] for x in both] # t over lib
     dts = [j-i for i, j in zip(ts[:-1], ts[1:])] # change in t
 
